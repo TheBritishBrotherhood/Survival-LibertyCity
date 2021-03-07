@@ -7,6 +7,8 @@ server_scripts {
 }
 
 client_scripts {
+	'@NativeUI/NativeUI.lua',
 	'client/world.lua',
-
+	'client/sselector.lua',
 }
+
