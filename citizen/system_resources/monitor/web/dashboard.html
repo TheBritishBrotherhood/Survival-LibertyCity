@@ -7,8 +7,6 @@
         height: 340px;
         margin: auto;
         overflow: hidden;
-        /* DEBUG */
-        /* background-color: rgb(207, 233, 255);  */
     }
     #d3-container svg {
         height: 340px;
@@ -32,6 +30,8 @@
         color: dimgrey;
         font-size: 16px;
         font-weight: 500;
+        margin: 2px calc(45px + 10px) 0px calc(27px + 10px);
+        line-height: 1;
     }
     .axisTitle .tickTimeLabel{
         min-width: 2em;
@@ -44,8 +44,28 @@
     .axisTitle .clientsLabel{
         min-width: 2em;
         height: 18px;
+        width: 6px;
         border: dimgrey 2px solid;
         background: rgb(204, 203, 203);
+    }
+    .axisTitle .labelText {
+        
+        margin-left: 0.2rem;
+        margin-right: 1.2rem;
+    }
+    #chartThreadSelectBtn{
+        padding: .1rem .4rem;
+        font-size: .7rem;
+    }
+    .axisTitle .threadSelectDropdown{
+        margin: 0px; position: absolute;
+        inset: 0px auto auto 0px;
+        transform: translate(0px, 26px);
+        min-width: unset;
+    }
+    #d3-container-message {
+        font-size: 2.25em;
+        margin-top: 2em;
     }
 
     /* Other stuff */
@@ -62,8 +82,10 @@
 </style>
 
 <!-- Title & outdated message: -->
-<div class="text-center mb-4">
-    <h2>{{it.serverName}} Dashboard</h2>
+<div class="text-center {{[(it.isWebInterface || it.txAdminOutdated), 'mb-4', '']|ternary}}">
+    {{@if(it.isWebInterface)}}
+        <h2>{{it.serverName}} Dashboard</h2>
+    {{/if}}
     {{@if(it.txAdminOutdated)}}
         <h2 class="text-danger">This version of txAdmin is outdated. Please update now.</h2>
         <h5 class="text-muted">
@@ -81,23 +103,28 @@
     <div class="dashboard-chart">
         <div class="card card-accent-info">
             <div class="card-body p-1">
-                <div class="text-center axisTitle">
-                    <!-- <span class="clientsLabel">■</span> -->
-                    <span class="badge clientsLabel"> &nbsp; </span>
-                    Players
-                    &nbsp;&nbsp;&nbsp;&nbsp;
-                    <!-- <span class="tickTimeLabel">■</span> -->
-                    <span class="badge tickTimeLabel"> &nbsp; </span>
-                    Tick Time (lower is better)
+                <div class="text-center axisTitle d-flex">
+                    <div class="mt-1x">
+                        <span class="badge clientsLabel">&nbsp;</span>
+                        <span class="labelText">Players</span>
+                        <span class="badge tickTimeLabel">&nbsp;</span>
+                        <span class="labelText">Tick Time (at bottom is better)</span>
+                    </div>
+
+                    <div class="btn-group ml-auto">
+                        <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" 
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" id="chartThreadSelectBtn">svMain</button>
+                        <div class="dropdown-menu threadSelectDropdown bg-secondary" data-popper-placement="bottom-start">
+                            <a class="dropdown-item bg-secondary text-dark" href="#" id="chartThreadSelectBtn-svMain">svMain</a>
+                            <a class="dropdown-item bg-secondary text-dark" href="#" id="chartThreadSelectBtn-svSync">svSync</a>
+                            <a class="dropdown-item bg-secondary text-dark" href="#" id="chartThreadSelectBtn-svNetwork">svNetwork</a>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="d3-container">
-                    <br><br><br><br><br>
-                    <div class="text-center text-muted p-4" style="font-size: 2.25em;" id="d3-container-message">
-                        loading chart...
-                    </div>
+                    <div class="text-center text-muted p-4" id="d3-container-message">loading chart...</div>
                 </div>
-            
             </div>
         </div>
     </div>
@@ -124,10 +151,12 @@
                     {{it.perms.controls}}>STOP</button>
                 <br>
 
+                {{@if(it.isWebInterface)}}
                 <button onclick="controlCommand('admin_broadcast')" class="btn btn-outline-dark btn-md mx-auto m-2"
                     type="button" id="ctrl-stop" {{it.perms.commandMessage}}>Announcement</button> &nbsp;
                 <button onclick="controlCommand('kick_all')" class="btn btn-outline-dark btn-md mx-auto m-2"
                     type="button" id="ctrl-stop" {{it.perms.commandKick}}>Kick All Players</button>
+                {{/if}}
             </div>
         </div>
     </div>
@@ -176,84 +205,101 @@
 
 <script src="https://d3js.org/d3.v6.min.js"></script>
 <script type="module">
-    import { drawHeatmap } from "/js/txadmin/chart.js";
+    import { drawHeatmap } from "{{it.basePath}}js/txadmin/chart.js";
 
-    //Elements
+    //Elements & vars
+    let perfData;
+    const chartThreadSelectBtn = document.getElementById('chartThreadSelectBtn');
     const perfDiagnosticsMessage = document.getElementById('perfDiagnosticsMessage');
     const d3Container = document.getElementById('d3-container');
-    const d3ContainerMessage = document.getElementById('d3-container-message');
-    
-    (async () => {
-        //Prepare data
-        let perfData;
+    const chartOptions = {
+        // colorScheme: d3[`{{[it.uiTheme, 'interpolateViridis', 'interpolateTurbo']|ternary}}`],
+        // colorScheme: d3.interpolateInferno,
+        // colorScheme: d3.interpolateTurbo,
+        colorScheme: d3.interpolateViridis,
+    }
+
+    //Draws the chart or sets the message
+    const draw = (data) => {
+        if(Array.isArray(data)){
+            const tsStart = Date.now();
+            const rects = drawHeatmap(d3Container, perfData, chartOptions);
+            const duration = Date.now() - tsStart;
+            perfDiagnosticsMessage.textContent = `Took ${duration}ms to draw ${rects} rects from ${perfData.length} snapshots.`;
+        }else if(typeof data == 'string'){
+            perfDiagnosticsMessage.textContent = '';
+            d3Container.innerHTML = `<div class="text-center text-muted p-4" id="d3-container-message">${data}</div>`;
+        }else{
+            perfDiagnosticsMessage.textContent = '';
+            d3Container.innerHTML = `<div class="text-center text-muted p-4" id="d3-container-message">unknown data type</div>`;
+        }
+        d3Container.style.opacity = 1;
+    }
+
+    //Sets the chart data
+    const setChartThread = async (thread) => {
+        console.log(`Fetching data for ${thread}`);
+        chartThreadSelectBtn.textContent = thread;
+        perfData = false;
         try {
-            const rawPerfData = await fetch(`/chartData`);
+            const rawPerfData = await fetch(TX_BASE_PATH + `chartData/${thread}`);
             const parsedPerfData = JSON.parse(await rawPerfData.text());
-            if(!Array.isArray(parsedPerfData)){
-                if(parsedPerfData.failReason == 'not_set'){
-                    d3ContainerMessage.innerText = 'chart database still loading';
-
-                }else if(parsedPerfData.failReason == 'not_enough_data'){
-                    d3ContainerMessage.innerText = 'Players & Performance data will be available soon...';
-
-                }else if(parsedPerfData.failReason == 'data_processing'){
-                    d3ContainerMessage.innerText = 'chart data processing failed';
-
-                }else{
-                    d3ContainerMessage.innerText = 'invalid chart data';
-
-                }
-            }else{
+            if(Array.isArray(parsedPerfData)){
                 perfData = parsedPerfData;
+                draw(parsedPerfData);
+            }else{
+                if(parsedPerfData.failReason == 'not_set'){
+                    draw('chart database still loading');
+                }else if(parsedPerfData.failReason == 'not_enough_data'){
+                    draw('Players & Performance chart will be available in an hour.');
+                }else if(parsedPerfData.failReason == 'data_processing'){
+                    draw('chart data processing failed');
+                }else if(parsedPerfData.failReason == 'rate_limiter'){
+                    draw('too many chart requests');
+                }else{
+                    draw('invalid chart data');
+                }
             }
         } catch (error) {
-            d3ContainerMessage.innerText = 'failed to load chart data';
+            draw('failed to load chart data');
         }
+    }
+    setChartThread('svMain');
+    document.getElementById('chartThreadSelectBtn-svMain').addEventListener('click', () => setChartThread('svMain'), false);
+    document.getElementById('chartThreadSelectBtn-svSync').addEventListener('click', () => setChartThread('svSync'), false);
+    document.getElementById('chartThreadSelectBtn-svNetwork').addEventListener('click', () => setChartThread('svNetwork'), false);
+
+    //Every 2.5 minutes
+    setInterval(() => {
+        setChartThread(chartThreadSelectBtn.textContent);
+    }, 2.5*60*1000);
+
+    //Renders it again when redized
+    let redrawTimeout;
+    window.addEventListener("resize", () => {
         if(!perfData) return;
-        //DEBUG
-        // perfData = [...perfData, ...perfData, ...perfData]
-        // perfData = perfData.slice(-50)
-
-        //Render page
-        const chartOptions = {
-            // colorScheme: d3[`{{[it.uiTheme, 'interpolateViridis', 'interpolateTurbo']|ternary}}`],
-            // colorScheme: d3.interpolateInferno,
-            // colorScheme: d3.interpolateTurbo,
-            colorScheme: d3.interpolateViridis,
-        }
-
-        const draw = () => {
-            const tsStart = Date.now();
-            drawHeatmap(d3Container, perfData, chartOptions);
-            d3Container.style.opacity = 1;
-            const duration = Date.now() - tsStart;
-            perfDiagnosticsMessage.textContent = `Took ${duration}ms to draw ${perfData.length*15} rects from ${perfData.length} snapshots.`;
-        }
-        draw();
-
-        let redrawTimeout;
-        window.addEventListener("resize", () => {
-            clearTimeout(redrawTimeout);
-            d3Container.style.opacity = 0.5;
-            redrawTimeout = setTimeout(() => {
-                draw();
-            }, 250);
-        });
-    })();
+        clearTimeout(redrawTimeout);
+        d3Container.style.opacity = 0.5;
+        redrawTimeout = setTimeout(() => {
+            draw(perfData);
+        }, 250);
+    });
 </script>
 
 <script>
     //============================================== Controls (start/restart/stop)
-    function controlAction(action) {
-        if (action !== 'start' && !window.confirm('Are you sure you want to ' + action + ' the server?')) {
+    async function controlAction(action) {
+        const confirmOptions = {content: `Are you sure you would like to <b>${action}</b> the server?`};
+        if(action !== 'start' && !await txAdminConfirm(confirmOptions)){
             return;
         }
-        var notify = $.notify({ message: '<p class="text-center">Executing Command...</p>' }, {});
-        $.ajax({
+
+        const notify = $.notify({ message: '<p class="text-center">Executing Command...</p>' }, {});
+        txAdminAPI({
             url: '/fxserver/controls/' + action,
             type: "GET",
             dataType: "json",
-            timeout: timeoutLong,
+            timeout: REQ_TIMEOUT_LONG,
             success: function (data) {
                 if (data.logout) {
                     window.location = '/auth?logout';
@@ -288,11 +334,10 @@
         }
         if(message == null) return;
 
-        var notify = $.notify({ message: 'Executing Command...' }, {});
-        $.ajax({
+        const notify = $.notify({ message: 'Executing Command...' }, {});
+        txAdminAPI({
             type: "POST",
             url: '/fxserver/commands',
-            timeout: timeoutMedium,
             data: {
                 action,
                 parameter: message

@@ -1,5 +1,28 @@
 {{@include("header", it)/}}
 
+<style>
+    .expandable-textarea {
+        border: 1px solid #ccc;
+        font-family: inherit;
+        font-size: inherit;
+        padding: 1px 6px;
+
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        resize: vertical;
+        height: max-content;
+        min-height: 40px;
+        line-height: 20px;
+        white-space: break-spaces;
+    }
+    .expandable-textarea[contenteditable]:empty::before {
+        color: gray;
+    }
+    .expandable-textarea[disabled] {
+        background-color: #d8dbe0;
+    }
+</style>
 
 <div class="text-center mb-4">
     <h2>Settings</h2>
@@ -32,6 +55,9 @@
                     <li class="nav-item">
                         <a class="nav-item nav-link {{it.activeTab=='discord'|isActive}}" id="nav-discord-tab" data-toggle="tab" href="#nav-discord"
                             role="tab" aria-controls="nav-discord" aria-selected="true">Discord</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-item nav-link {{it.activeTab=='menu'|isActive}}" id="nav-menu-tab" data-toggle="tab" href="#nav-menu" role="tab" aria-controls="nav-menu" aria-selected="true">Menu</a>
                     </li>
                 </ul>
             </div>
@@ -75,6 +101,7 @@
                                     <option value="fi" {{it.global.language=='fi'|isSelected}}>Finnish</option>
                                     <option value="fr" {{it.global.language=='fr'|isSelected}}>French</option>
                                     <option value="hu" {{it.global.language=='hu'|isSelected}}>Hungarian</option>
+                                    <option value="it" {{it.global.language=='it'|isSelected}}>Italian</option>
                                     <option value="lt" {{it.global.language=='lt'|isSelected}}>Lithuanian</option>
                                     <option value="lv" {{it.global.language=='lv'|isSelected}}>Latvian</option>
                                     <option value="nl" {{it.global.language=='nl'|isSelected}}>Dutch</option>
@@ -89,11 +116,11 @@
                                     <option value="tr" {{it.global.language=='tr'|isSelected}}>Turkish</option>
                                     <option value="zh" {{it.global.language=='zh'|isSelected}}>Chinese</option>
 
-                                    <option value="custom" {{it.global.language=='custom'|isSelected}}>Custom (read the documentation)</option>
+                                    <option value="custom" {{it.global.language=='custom'|isSelected}}>Custom (txData/locale.json)</option>
                                 </select>
                                 <span class="form-text text-muted">
                                     The language to use on Chat/Discord messages. <br>
-                                    <b>Note:</b> For the Custom option, read the documentation.
+                                    <b>Note:</b> For the Custom option, read the <a href="https://github.com/tabarra/txAdmin/blob/master/docs/translation.md" target="_blank" rel="noopener noreferrer">documentation</a>.
                                 </span>
                             </div>
                         </div>
@@ -116,8 +143,10 @@
                                     placeholder="C:/Users/Admin/Desktop/server01" {{it.readOnly|isDisabled}}>
                                 <span class="form-text text-muted">
                                     The folder that <strong>contains</strong> the <code>resources</code> and
-                                    <code>cache</code> folders, usually it's where you put your
-                                    <code>server.cfg</code>.
+                                    <code>cache</code> folders, usually it's where you put your <code>server.cfg</code>. <br>
+                                    {{@if(it.isZapHosting)}}
+                                        <span class="font-weight-bold">ZAP-Hosting warning: this path must start with <code>{{it.txDataPath}}</code>.</span>
+                                    {{/if}}
                                 </span>
                             </div>
                         </div>
@@ -140,8 +169,12 @@
                                 Additional Arguments
                             </label>
                             <div class="col-sm-9">
-                                <input type="text" class="form-control" id="frmFXServer-commandLine" value="{{it.fxserver.commandLine|undef}}"
-                                    placeholder="+exec private.cfg" {{it.readOnly|isDisabled}}>
+                                <style>
+                                    .ph-fxs-cmdline:empty::before {
+                                        content: "+set sv_enforceGameBuild 2189";
+                                    }
+                                </style>
+                                <span class="expandable-textarea form-control ph-fxs-cmdline" role="textbox" id="frmFXServer-commandLine" {{[it.readOnly, "disabled", "contenteditable"]|ternary}}>{{it.fxserver.commandLine|undef}}</span>
                                 <span class="form-text text-muted">
                                     Additional command-line arguments to pass to the FXServer instance. <br>
                                     For example, you can add <code>+set</code> and <code>+exec</code> commands. <br>
@@ -159,8 +192,9 @@
                                     <option value="on" {{it.fxserver.onesync=='on'|isSelected}}>On (with infinity)</option>
                                 </select>
                                 <span class="form-text text-muted">
-                                    Required if your server has more than 32 slots. <br>
-                                    <b>Note:</b> Setting to <code>on</code> will override <code>onesync_enableInfinity</code> if set as an Additional Argument above.
+                                    Required if your server has more than 48 slots. <br>
+                                    <b>Note:</b> Setting to <code>on</code> will override <code>onesync_enableInfinity</code> if set as an Additional Argument above. <br>
+                                    <b>Note:</b> Setting onesync in your <code>server.cfg</code> will override this configuration.
                                 </span>
                             </div>
                         </div>
@@ -180,12 +214,12 @@
                         </div>
 
                         <div class="form-group row">
-                            <label class="col-sm-3 col-form-label">Quiet</label>
+                            <label class="col-sm-3 col-form-label">Quiet Mode</label>
                             <div class="col-sm-9">
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmFXServer-quiet"
                                         {{it.fxserver.quiet|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     Do not print FXServer's output to the terminal. <br>
@@ -227,7 +261,7 @@
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmMonitor-chatMessages"
                                         {{it.monitor.disableChatWarnings|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     Check this if you want to disable broadcast chat warning messages in game before each scheduled restart.
@@ -266,7 +300,7 @@
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmPlayerManager-onJoinCheckBan"
                                         {{it.playerController.onJoinCheckBan|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     Enable checking for <strong>Ban</strong> status on player join. <br>
@@ -283,7 +317,7 @@
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmPlayerManager-onJoinCheckWhitelist"
                                         {{it.playerController.onJoinCheckWhitelist|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     Enable checking for <strong>Whitelist</strong> status on player join. <br>
@@ -316,9 +350,12 @@
                                 <span class="text-danger">*</span>
                             </label>
                             <div class="col-sm-9">
-                                <textarea class="form-control" id="frmPlayerManager-whitelistRejectionMessage" rows="4" 
-                                    placeholder="You are not yet whitelisted in this server.&#10;Please join http://discord.gg/example.&#10;Your ID: &lt;id&gt;" 
-                                    maxlength="256" {{it.readOnly|isDisabled}}>{{it.playerController.whitelistRejectionMessage|undef}}</textarea>
+                                <style>
+                                    .ph-playermanager-rejectmsg:empty::before {
+                                        content: "You are not yet whitelisted in this server.\a Please join http://discord.gg/example.\a Your Request ID: <id>";
+                                    }
+                                </style>
+                                <span class="expandable-textarea form-control ph-playermanager-rejectmsg" role="textbox" id="frmPlayerManager-whitelistRejectionMessage" {{[it.readOnly, "disabled", "contenteditable"]|ternary}}>{{it.playerController.whitelistRejectionMessage|undef}}</span>
                                 <span class="form-text text-muted">
                                     The message that will be returned to the player if he is not whitelisted. <br>
                                     Use <code>&lt;id&gt;&#10;</code> as a placeholder for the whitelist request ID.
@@ -335,7 +372,7 @@
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmPlayerManager-wipePendingWLOnStart"
                                         {{it.playerController.wipePendingWLOnStart|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     When enabled, the pending whitelist will be wiped every time txAdmin starts <br>
@@ -360,7 +397,7 @@
                                 <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
                                     <input class="c-switch-input" type="checkbox" id="frmDiscord-enabled"
                                         {{it.discord.enabled|undef}} {{it.readOnly|isDisabled}}>
-                                    <span class="c-switch-slider" data-checked="On" data-unchecked="Off"></span>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
                                 </label>
                                 <span class="form-text text-muted">
                                     Enable Discord Integration.
@@ -422,8 +459,12 @@
                                 <span class="text-danger">*</span>
                             </label>
                             <div class="col-sm-9">
-                                <textarea class="form-control" id="frmDiscord-statusMessage" rows="4" 
-                                    placeholder="**IP:** `connect cfx.re/join/xxxxxx`&#10;**Players:** &lt;players&gt;&#10;**Uptime:** &lt;uptime&gt;" {{it.readOnly|isDisabled}}>{{it.discord.statusMessage|undef}}</textarea>
+                                <style>
+                                    .ph-discord-statusmsg:empty::before {
+                                        content: "**Join:** `connect cfx.re/join/xxxxxx`\a**Players:** <players>\a**Uptime:** <uptime>";
+                                    }
+                                </style>
+                                <span class="expandable-textarea form-control ph-discord-statusmsg" role="textbox" id="frmDiscord-statusMessage" {{[it.readOnly, "disabled", "contenteditable"]|ternary}}>{{it.discord.statusMessage|undef}}</span>
                                 <span class="form-text text-muted">
                                     The response to the <code>/status</code> command. <br>
                                     Supported placeholders: <code>players</code>, <code>port</code>, <code>uptime</code>.
@@ -440,6 +481,58 @@
                     </div>
                     <!-- /Discord Tab -->
 
+                    <!-- Menu Tab -->
+                    <div class="tab-pane fade {{it.activeTab=='menu'|isActive|tShow}}" id="nav-menu" role="tabpanel" aria-labelledby="nav-menu-tab">
+                        <div class="form-group row">
+                            <label class="col-sm-3 col-form-label">Enable Menu</label>
+                            <div class="col-sm-9">
+                                <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
+                                    <input class="c-switch-input" type="checkbox" id="frmMenu-enabled"
+                                        {{it.global.menuEnabled|undef}} {{it.readOnly|isDisabled}}>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
+                                </label>
+                                <span class="form-text text-muted">
+                                    When enabled, admins will be able to open the menu by typing <code>/tx</code> or using the keybind configured in the FiveM settings.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label class="col-sm-3 col-form-label">Align Right</label>
+                            <div class="col-sm-9">
+                                <label class="c-switch c-switch-label c-switch-pill c-switch-success fix-pill-form">
+                                    <input class="c-switch-input" type="checkbox" id="frmMenu-alignRight"
+                                        {{it.global.menuAlignRight|undef}} {{it.readOnly|isDisabled}}>
+                                    <span class="c-switch-slider" data-checked="Yes" data-unchecked="No"></span>
+                                </label>
+                                <span class="form-text text-muted">
+                                    Move menu to the right side of the screen.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="frmMenu-pageKey" class="col-sm-3 col-form-label">Page Switch Key</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="frmMenu-pageKey"
+                                    value="{{it.global.menuPageKey|undef}}" 
+                                    placeholder="578045190955335691" {{it.readOnly|isDisabled}}>
+                                <span class="form-text text-muted">
+                                    The key used to to switch tabs in the menu. <br>
+                                    Click above and press any key to change the configuration. <br>
+                                    <strong>Note:</strong> The default is <code>Tab</code>, and you cannot use <code>Escape</code> or <code>Backspace</code>.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            <button class="btn btn-sm btn-primary" type="submit" id="frmMenu-save" {{it.readOnly|isDisabled}}>
+                                <i class="icon-check"></i> Save Menu Settings
+                            </button>
+                        </div>
+                    </div>
+                    <!-- /Menu Tab -->
+
                 </div>
             </div>
 
@@ -449,104 +542,27 @@
     </div>
 </div>
 
-{{@if(it.adminIsMaster)}}
-    <div class="row justify-content-md-center">
-        <div class="col-md-7 mw-col8">
-            <div class="card border-danger">
-                <div class="card-header text-center">
-                    <h5 class="d-inline">Master Actions</h5>
-                </div>
-                <div class="card-body">
-                    <!-- Backup Database -->
-                    <div class="row text-center pt-2">
-                        <div class="col-lg-9 text-lg-left mb-2">
-                            <h5>Backup Database <span class="badge badge-info">NEW</span></h5>
-                            Download a copy of the <code>playersDB.json</code> file containing all players and actions (bans, warns and whitelists).  
-                            You should do this every once in a while.
-                        </div>
-                        <div class="col-lg-3 text-lg-right">
-                            <a class="btn btn-sm btn-outline-danger" target="_blank" href="/masterActions/backupDatabase">Backup Database</a>
-                        </div>
-                    </div>
-                    <hr class="m-1">
-
-                    <!-- Import bans -->
-                    <div class="row text-center pt-2">
-                        <div class="col-lg-9 text-lg-left mb-2">
-                            <h5>Import Bans <span class="badge badge-info">NEW</span></h5>
-                            If you wish to migrate from another ban system, use this tool to import existing bans. <br>
-                            Supported systems: EasyAdmin, BanSQL, vMenu, vRP, el_bwh.
-                        </div>
-                        <div class="col-lg-3 text-lg-right">
-                            <a class="btn btn-sm btn-outline-danger" href="/masterActions/importBans">Import Bans</a>
-                        </div>
-                    </div>
-                    <hr class="m-1">
-
-                    <!-- Reset FXServer -->
-                    <div class="row text-center">
-                        <div class="col-lg-9 text-lg-left mb-2">
-                            <h5>Reset FXServer</h5>
-                            In the FXServer tab you can change the server data path, but if you want to use
-                            the Deployer again, you will need to use this option. <br>
-                            None of your files or databases will be deleted by doing that.
-                        </div>
-                        <div class="col-lg-3 text-lg-right">
-                            <button class="btn btn-sm btn-outline-danger" type="button" 
-                                onclick="masterActionsActions('reset_fxserver');">Reset FXServer</button>
-                        </div>
-                    </div>
-                    <!-- <hr class="m-1"> -->
-
-                </div>
-            </div>
-        </div>
-    </div>
-{{/if}}
 
 {{@include("footer", it)/}}
 
 
 <script>
     //============================================== General
-    let serverTimezone = "{{it.serverTimezone}}";
-    let browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const serverTimezone = "{{it.serverTimezone}}";
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if(serverTimezone !== browserTimezone){
-        let msg = `Server's timezone: <b>${serverTimezone}</b> <br>
+        const msg = `Server's timezone: <b>${serverTimezone}</b> <br>
             Your timezone: <b>${browserTimezone}</b> <br>
             Make sure to adjust the times to match your expectations.`;
         $('#frmMonitor-timezoneAlert').html(msg);
     }
 
-    //============================================== Master Actions
-    function masterActionsActions(action){
-        if(!window.confirm(`Are you sure you want to Reset FXServer Settings?`)){
-            return;
+    const expandables = document.getElementsByClassName('expandable-textarea');
+    for (const el of expandables) {
+        console.log(el.name)
+        el.onkeyup = () =>{
+            el.textContent = el.textContent;
         }
-        var notify = $.notify({ message: '<p class="text-center">Executing...</p>' }, {});
-
-        $.ajax({
-            type: "POST",
-            url: `/masterActions/${action}`,
-            timeout: timeoutMedium,
-            data: {},
-            dataType: 'json',
-            success: function (data) {
-                if(action == 'reset_fxserver' && data.success == true){
-                    window.location = '/setup';
-                    return;
-                }else{
-                    notify.update('progress', 0);
-                    notify.update('type', data.type);
-                    notify.update('message', data.message);
-                }
-            },
-            error: function (xmlhttprequest, textstatus, message) {
-                notify.update('progress', 0);
-                notify.update('type', 'danger');
-                notify.update('message', message);
-            }
-        });
     }
 
 
@@ -555,18 +571,15 @@
         let data = {
             serverName: $('#frmGlobal-serverName').val().trim(),
             language: $('#frmGlobal-language').val(),
-            verbose: $('#frmGlobal-verbose').is(':checked')
         }
         if (!data.serverName.length) {
-            var notify = $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
-            return;
+            return $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
         }
-        var notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-        $.ajax({
+        txAdminAPI({
             type: "POST",
             url: '/settings/save/global',
-            timeout: timeoutMedium,
             data: data,
             dataType: 'json',
             success: function (data) {
@@ -584,25 +597,29 @@
 
 
     //============================================== FXServer Settings
+    const fxsCmdLineEl = document.getElementById('frmFXServer-commandLine');
     $('#frmFXServer-save').click(function () {
         let data = {
             serverDataPath: $('#frmFXServer-serverDataPath').val().trim(),
             cfgPath: $('#frmFXServer-cfgPath').val().trim(),
-            commandLine: $('#frmFXServer-commandLine').val().trim(),
+            commandLine: fxsCmdLineEl.textContent.trim(),
             onesync: $('#frmFXServer-onesync').val(),
             autostart: $('#frmFXServer-autostart').is(':checked'),
             quiet: $('#frmFXServer-quiet').is(':checked')
         }
         if (!data.serverDataPath.length || !data.cfgPath.length) {
-            var notify = $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
-            return;
+            return $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
         }
-        var notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+        if (data.commandLine.includes(' onesync ')){
+            return $.notify({ message: 'You cannot set onesync in Additional Arguments. Please use the selectbox below it.' }, { type: 'warning' });
+        }
+        //Removing menu beta convar (v4.9)
+        data.commandLine = data.commandLine.replace(/\+?setr? txEnableMenuBeta true\s?/gi, '');
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-        $.ajax({
+        txAdminAPI({
             type: "POST",
             url: '/settings/save/fxserver',
-            timeout: timeoutMedium,
             data: data,
             dataType: 'json',
             success: function (data) {
@@ -620,24 +637,23 @@
 
 
     //============================================== Player Manager Settings
+    const pmWlRejectMsgEl = document.getElementById('frmPlayerManager-whitelistRejectionMessage');
     $('#frmPlayerManager-save').click(function () {
         let data = {
             onJoinCheckBan: $('#frmPlayerManager-onJoinCheckBan').is(':checked'),
             onJoinCheckWhitelist: $('#frmPlayerManager-onJoinCheckWhitelist').is(':checked'),
             minSessionTime: $('#frmPlayerManager-minSessionTime').val().trim(),
-            whitelistRejectionMessage: $('#frmPlayerManager-whitelistRejectionMessage').val().trim(),
+            whitelistRejectionMessage: pmWlRejectMsgEl.textContent.trim(),
             wipePendingWLOnStart: $('#frmPlayerManager-wipePendingWLOnStart').is(':checked'),
         }
         if (!data.minSessionTime.length || !data.whitelistRejectionMessage.length) {
-            var notify = $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
-            return;
+            return $.notify({ message: 'The fields with "*" are required.' }, { type: 'warning' });
         }
-        var notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-        $.ajax({
+        txAdminAPI({
             type: "POST",
             url: '/settings/save/playerController',
-            timeout: timeoutMedium,
             data: data,
             dataType: 'json',
             success: function (data) {
@@ -661,12 +677,11 @@
             restarterScheduleWarnings: $('#frmMonitor-restarterScheduleWarnings').val().trim(),
             disableChatWarnings: ($('#frmMonitor-chatMessages').is(':checked') === true),
         }
-        var notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-        $.ajax({
+        txAdminAPI({
             type: "POST",
             url: '/settings/save/monitor',
-            timeout: timeoutMedium,
             data: data,
             dataType: 'json',
             success: function (data) {
@@ -684,24 +699,62 @@
 
 
     //============================================== Discord Settings
+    const dcStatusMsgEl = document.getElementById('frmDiscord-statusMessage');
     $('#frmDiscord-save').click(function () {
         let data = {
             enabled: ($('#frmDiscord-enabled').is(':checked') === true),
             token: $('#frmDiscord-token').val().trim(),
             announceChannel: $('#frmDiscord-announceChannel').val().trim(),
             prefix: $('#frmDiscord-prefix').val().trim(),
-            statusMessage: $('#frmDiscord-statusMessage').val().trim()
+            statusMessage: dcStatusMsgEltextContent.trim(),
         };
         if (data.enabled && (!data.token.length || !data.prefix.length || !data.statusMessage.length)) {
-            var notify = $.notify({ message: 'The fields with "*" are required when the bot is enabled.' }, { type: 'warning' });
-            return;
+            return $.notify({ message: 'The fields with "*" are required when the bot is enabled.' }, { type: 'warning' });
         }
-        var notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-        $.ajax({
+        txAdminAPI({
             type: "POST",
             url: '/settings/save/discord',
-            timeout: timeoutMedium,
+            data: data,
+            dataType: 'json',
+            success: function (data) {
+                notify.update('progress', 0);
+                notify.update('type', data.type);
+                notify.update('message', data.message);
+            },
+            error: function (xmlhttprequest, textstatus, message) {
+                notify.update('progress', 0);
+                notify.update('type', 'danger');
+                notify.update('message', message);
+            }
+        });
+    });
+
+
+    //============================================== Menu Settings
+    const pageKeyEl = document.getElementById('frmMenu-pageKey');
+    pageKeyEl.onkeydown = (e) => {
+        if (!e.metaKey) e.preventDefault();
+
+        if(["Escape", "Backspace"].includes(e.code)){
+            pageKeyEl.value = 'Tab';
+        }else{
+            pageKeyEl.value = e.code;
+        }
+    }
+
+    $('#frmMenu-save').click(function () {
+        let data = {
+            menuEnabled: ($('#frmMenu-enabled').is(':checked') === true),
+            menuAlignRight: ($('#frmMenu-alignRight').is(':checked') === true),
+            menuPageKey: $('#frmMenu-pageKey').val().trim()
+        };
+        const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
+
+        txAdminAPI({
+            type: "POST",
+            url: '/settings/save/menu',
             data: data,
             dataType: 'json',
             success: function (data) {

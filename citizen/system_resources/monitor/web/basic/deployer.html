@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <base href="/">
+    <base href="{{it.basePath}}">
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
@@ -16,7 +16,10 @@
     <link rel="stylesheet" href="css/txAdmin.css">
 
     <!-- Page CSS -->
-    <link rel="stylesheet" href="css/codemirror.css">
+    <!-- <link rel="stylesheet" href="css/codemirror.css"> -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.61.1/codemirror.min.css" 
+        integrity="sha512-xIf9AdJauwKIVtrVRZ0i4nHP61Ogx9fSRAkCLecmE2dL/U8ioWpDvFCAy4dcfecN72HHB9+7FfQj3aiO68aaaw==" 
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="css/codemirror_lucario.css">
     <style>
         .inline-code{
@@ -36,6 +39,9 @@
             font-size: large;
         }
     </style>
+    
+    <!-- injected consts -->
+    <script>{{it.jsInjection|safe}}</script>
 </head>
 
 <body class="c-app flex-row align-items-center {{it.uiTheme}}">
@@ -95,6 +101,14 @@
                         <div class="card-header">Step 1: Review Recipe ✔️</div>
                         <div class="card-header font-weight-bold ">Step 2: Input Parameters</div>
                         <div class="card-body">
+                            {{@if(it.defaults.autofilled)}}
+                                <div class="row mb-3 mt-0 text-center">
+                                    <div class="col-8 mx-auto card d-block border-warning p-2 mb-1">
+                                        <strong>Note:</strong> The following config was autofilled by <strong>ZAP-Hosting</strong>. <br>
+                                        You <i>may</i> edit those, but it's strongly disencouraged.
+                                    </div>
+                                </div>
+                            {{/if}}
                             <form id="step2-form">
                                 <div class="form-group row">
                                     <label for="step2-svLicense" class="col-sm-3 col-form-label">
@@ -102,14 +116,24 @@
                                         <span class="text-danger">*</span>
                                     </label>
                                     <div class="col-sm-9">
-                                        <input type="text" class="form-control blur-input" id="step2-svLicense" maxlength="32" 
-                                            autocomplete="off" placeholder="YourKeyYourKeyYourKeyYourKeyYour" required autofocus>
+                                        <input type="text" class="form-control blur-input" id="step2-svLicense" maxlength="86" 
+                                            autocomplete="off" placeholder="cfxk_xxxxxxxxxxxxxxxxxxxx_xxxxx" 
+                                            value="{{it.defaults.license}}" required autofocus>
                                         <span class="form-text text-muted">
                                             The license key for your server obtained in <a href="https://keymaster.fivem.net/" target="_blank" rel="noopener noreferrer">Keymaster</a>.
                                         </span>
                                     </div>
                                 </div>
                                 {{@if(it.requireDBConfig)}}
+                                <div class="row justify-content-center m-2">
+                                    <a class="btn btn-small btn-outline-secondary" data-toggle="collapse" href="#collapseDbOptions" aria-expanded="true"  aria-controls="collapseDbOptions">
+                                        <svg class="c-sidebar-nav-icon ml-1" id="darkToggleLight">
+                                            <use href="img/coreui_icons.svg#cil-settings"></use>
+                                        </svg>
+                                        Show/Hide Database options (advanced)
+                                    </a>
+                                </div>
+                                <div class="collapse" id="collapseDbOptions">
                                     <div class="form-group row">
                                         <label for="step2-dbHost" class="col-sm-3 col-form-label">
                                             Database Host
@@ -117,7 +141,7 @@
                                         </label>
                                         <div class="col-sm-9">
                                             <input type="text" class="form-control" id="step2-dbHost"
-                                                placeholder="localhost" value="localhost" required>
+                                                placeholder="{{it.defaults.mysqlHost}}" value="{{it.defaults.mysqlHost}}" required>
                                             <span class="form-text text-muted">
                                                 The IP/Hostname of the database server (usually <code>localhost</code>).
                                             </span>
@@ -130,7 +154,7 @@
                                         </label>
                                         <div class="col-sm-9">
                                             <input type="text" class="form-control" id="step2-dbUsername"
-                                                placeholder="root" value="root" required>
+                                                placeholder="{{it.defaults.mysqlUser}}" value="{{it.defaults.mysqlUser}}" required>
                                             <span class="form-text text-muted">
                                                 The database username (usually <code>root</code>).
                                             </span>
@@ -142,9 +166,9 @@
                                         </label>
                                         <div class="col-sm-9">
                                             <input type="text" class="form-control blur-input" id="step2-dbPassword"
-                                                autocomplete="off" placeholder="empty" value="">
+                                                autocomplete="off" placeholder="leave it blank" value="{{it.defaults.mysqlPassword}}">
                                             <span class="form-text text-muted">
-                                                The database password (usually empty).
+                                                The database password (usually blank).
                                             </span>
                                         </div>
                                     </div>
@@ -154,9 +178,9 @@
                                         </label>
                                         <div class="col-sm-9">
                                             <input type="text" class="form-control" id="step2-dbName"
-                                                placeholder="{{it.deploymentID}}" value="{{it.deploymentID}}">
+                                                placeholder="{{it.defaults.mysqlDatabase}}" value="{{it.defaults.mysqlDatabase}}">
                                             <span class="form-text text-muted">
-                                                The name of the database to be used. <br>
+                                                The name of the database to be used or created. <br>
                                                 If left empty, the deployment ID (<code>{{it.deploymentID}}</code>) will be used instead.
                                             </span>
                                         </div>
@@ -176,6 +200,7 @@
                                             </span>
                                         </div>
                                     </div>
+                                </div>
                                 {{/if}}
                                 {{@if(it.inputVars.length)}}
                                     <div class="hrsep hrsep-small mb-3">Custom Variables</div>
@@ -192,7 +217,7 @@
                                     {{/each}}
                                 {{/if}}
                             </form>
-                            <div class="row justify-content-center m-2">
+                            <div class="row justify-content-center m-2 mt-3">
                                 <button class="btn btn-outline-danger" type="button" 
                                     onclick="cancelAction()">Cancel and Return to Setup</button>
                                 &nbsp; &nbsp;
@@ -269,7 +294,7 @@
         <!-- Info Row -->
         <div class="row justify-content-center">
             <div class="col-md-4 ">
-                <div class="alert alert-secondary text-center small" role="alert">
+                <div class="alert alert-secondary text-center small" style="min-width: 280px;" role="alert">
                     <strong>Server profile:</strong> {{it.serverProfile}} <br>
                     <strong>txAdmin version:</strong> {{it.txAdminVersion}} <br>
                     <strong>FXServer build:</strong> {{it.fxServerVersion}} 
@@ -296,45 +321,28 @@
 
     </div>
     <!-- CoreUI and necessary plugins-->
-    <script src="js/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" 
+        integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" 
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/coreui.bundle.min.js"></script>
     <script src="js/bootstrap-notify.min.js"></script>
-    <script src="js/txadmin/dark.js"></script>
+    <script src="js/txadmin/base.js"></script>
 
     <!-- JS -->
-    <script src="js/codeEditor/codemirror.js"></script>
+    <!-- <script src="js/codeEditor/codemirror.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.61.1/codemirror.min.js" 
+        integrity="sha512-ZTpbCvmiv7Zt4rK0ltotRJVRaSBKFQHQTrwfs6DoYlBYzO1MA6Oz2WguC+LkV8pGiHraYLEpo7Paa+hoVbCfKw==" 
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/codeEditor/mode/simple.js"></script>
     <script src="js/codeEditor/mode/fivem-cfg.js"></script>
     <script src="js/codeEditor/mode/yaml.js"></script>
     <script>
         //============================================== CodeMirror & Page Setup
         const currentStep = '{{it.step}}';
-        const timeoutLong = 4000;
-
-        const checkDoLogoutRefresh = (data) => {
-            if(data.logout === true){
-                window.location = '/auth?logout';
-                return true;
-            }else if(data.refresh === true){
-                window.location.reload(true);
-                return true;
-            }
-            return false;
-        }
+        const codeMirrorTarget = document.getElementById("codeMirrorTarget");
 
         window.onload = function () {
-            $.notifyDefaults({
-                z_index: 2000,
-                mouse_over: 'pause',
-                placement: {
-                    align: 'center'
-                },
-                offset: {
-                    y: 64
-                },
-            });
             if(currentStep == 'review' || currentStep == 'configure'){
-                const codeMirrorTarget = document.getElementById("codeMirrorTarget");
                 window.CMInstance = CodeMirror.fromTextArea(codeMirrorTarget, {
                     mode: (currentStep == 'review')? 'yaml' : 'fivem-cfg',
                     lineNumbers: true,
@@ -349,17 +357,20 @@
         //============================================== Step1 action
         function step1Action(){
             const editor = window.CMInstance;
+            if(editor.getValue().includes('This is just a placeholder')){
+                return $.notify({ message: `If you are not trying to write a recipe, click on the cancel button below to return to the setup page, where you can select a recommended template. Otherwise, jut remove the placeholder warning comment.` }, { type: 'warning' });
+            }
             editor.setValue(editor.getValue().replace(/\t/g, ' '.repeat(4)));
             const recipe = editor.getValue();
-            if(recipe.length < 128){
+            if(recipe.length < 256){
                 return $.notify({ message: `Your Recipe file is too small, there is a good chance you deleted something you shouldn't.` }, { type: 'warning' });
             }
             const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
 
-            $.ajax({
+            txAdminAPI({
                 type: "POST",
                 url: '/deployer/recipe/confirmRecipe',
-                timeout: timeoutLong,
+                timeout: REQ_TIMEOUT_LONG,
                 data: {recipe},
                 dataType: 'json',
                 success: function (data) {
@@ -406,9 +417,6 @@
             const postData = {
                 svLicense: step2elements.svLicense.value.trim()
             }
-            if(!/^\w{32}$/.test(postData.svLicense)){
-                return $.notify({ message: `The Server License does not appear to be valid.` }, { type: 'warning' });
-            }
             if(requireDBConfig){
                 postData.dbHost = step2elements.dbHost.value.trim();
                 postData.dbUsername = step2elements.dbUsername.value.trim();
@@ -432,10 +440,10 @@
             }
 
             const notify = $.notify({ message: '<p class="text-center">Saving...</p>' }, {});
-            $.ajax({
+            txAdminAPI({
                 type: "POST",
                 url: '/deployer/recipe/setVariables',
-                timeout: timeoutLong,
+                timeout: REQ_TIMEOUT_LONG,
                 data: postData,
                 dataType: 'json',
                 success: function (data) {
@@ -466,10 +474,10 @@
             nextButton: document.getElementById('step3NextButton'),
         }
         const refreshStatus = async () => {
-            $.ajax({
+            txAdminAPI({
                 type: "GET",
                 url: '/deployer/status',
-                timeout: timeoutLong,
+                timeout: REQ_TIMEOUT_LONG,
                 success: function (data) {
                     if(checkDoLogoutRefresh(data)) return;
                     step3elements.error.classList.add('d-none');
@@ -522,10 +530,10 @@
                 return $.notify({ message: `Please change the <strong>sv_licenseKey</strong>.` }, { type: 'danger' });
             }
 
-            $.ajax({
+            txAdminAPI({
                 type: "POST",
                 url: '/deployer/recipe/commit',
-                timeout: timeoutLong,
+                timeout: REQ_TIMEOUT_LONG,
                 data: {serverCFG},
                 dataType: 'json',
                 success: function (data) {
@@ -549,10 +557,10 @@
         //============================================== cancel action
         function cancelAction(){
             const notify = $.notify({ message: '<p class="text-center">Cancelling...</p>' }, {});
-            $.ajax({
+            txAdminAPI({
                 type: "POST",
                 url: '/deployer/recipe/cancel',
-                timeout: timeoutLong,
+                timeout: REQ_TIMEOUT_LONG,
                 success: function (data) {
                     if(checkDoLogoutRefresh(data)) return;
                     if (data.success == true){

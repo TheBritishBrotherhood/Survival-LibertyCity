@@ -1,38 +1,64 @@
 --Helpers
 function log(x)
-    print("^5[txAdminClientLUA]^0 " .. x)
+    print("^5[txAdminClient]^0 " .. x)
 end
 function logError(x)
-    print("^5[txAdminClientLUA]^1 " .. x .. "^0")
+    print("^5[txAdminClient]^1 " .. x .. "^0")
 end
 function unDeQuote(x)
     local new, count = string.gsub(x, utf8.char(65282), '"')
     return new
 end
 
+
 --Check Environment
-local apiPort = GetConvar("txAdmin-apiPort", "invalid")
-local apiToken = GetConvar("txAdmin-apiToken", "invalid")
-local txAdminClientVersion = GetResourceMetadata(GetCurrentResourceName(), 'version')
 if GetConvar('txAdminServerMode', 'false') ~= 'true' then
     return
 end
-if apiPort == "invalid" or apiToken == "invalid" then
-    logError('API Port and Token ConVars not found. Do not start this resource if not using txAdmin.')
+if GetCurrentResourceName() ~= "monitor" then
+    logError('This resource should not be installed separately, it already comes with fxserver.')
     return
 end
+
+
+-- Global Vars
+TX_ADMINS = {}
+TX_PLAYERLIST = {}
+TX_LUACOMHOST = GetConvar("txAdmin-luaComHost", "invalid")
+TX_LUACOMTOKEN = GetConvar("txAdmin-luaComToken", "invalid")
+TX_VERSION = GetResourceMetadata(GetCurrentResourceName(), 'version') -- for now, only used in the start print
+
+-- Checking convars
+if TX_LUACOMHOST == "invalid" or TX_LUACOMTOKEN == "invalid" then
+    log('^1API Host or Pipe Token ConVars not found. Do not start this resource if not using txAdmin.')
+    return
+end
+if TX_LUACOMTOKEN == "removed" then
+    log('^1Please do not restart the monitor resource.')
+    return
+end
+
+-- Erasing the token convar for security reasons, and then restoring it if debug mode.
+-- The convar needs to be reset on first tick to prevent other resources from reading it.
+-- We actually need to wait two frames: one for convar replication, one for debugPrint.
+SetConvar("txAdmin-luaComToken", "removed")
+CreateThread(function()
+    Wait(0)
+    if debugModeEnabled then
+        debugPrint("Restoring txAdmin-luaComToken for next monitor restart")
+        SetConvar("txAdmin-luaComToken", TX_LUACOMTOKEN)
+    end
+end)
 
 
 -- Setup threads and commands
 local hbReturnData = 'no-data'
-log("Version "..txAdminClientVersion.." starting...")
+log("Version "..TX_VERSION.." starting...")
 CreateThread(function()
     RegisterCommand("txaPing", txaPing, true)
-    RegisterCommand("txaWarnID", txaWarnID, true)
     RegisterCommand("txaKickAll", txaKickAll, true)
     RegisterCommand("txaKickID", txaKickID, true)
     RegisterCommand("txaDropIdentifiers", txaDropIdentifiers, true)
-    RegisterCommand("txaBroadcast", txaBroadcast, true)
     RegisterCommand("txaEvent", txaEvent, true)
     RegisterCommand("txaSendDM", txaSendDM, true)
     RegisterCommand("txaReportResources", txaReportResources, true)
@@ -56,32 +82,24 @@ end)
 
 -- HeartBeat functions
 function HTTPHeartBeat()
-    local playerCount = GetNumPlayerIndices()
-    
-    local players = {}
-    for i = 0, playerCount - 1 do
-        local player = GetPlayerFromIndex(i)
-		if player ~= nil then
-			local numIds = GetNumPlayerIdentifiers(player)
-
-			local ids = {}
-			for j = 0, numIds - 1 do
-				table.insert(ids, GetPlayerIdentifier(player, j))
-			end
-			local playerData = {
-				id = player,
-				identifiers = ids,
-				name = GetPlayerName(player),
-				ping = GetPlayerPing(player)
-			}
-			table.insert(players, playerData)
-		end
+    local curPlyData = {}
+    local players = GetPlayers()
+    for i = 1, #players do
+        local player = players[i]
+        local ids = GetPlayerIdentifiers(player)
+        -- using manual insertion instead of table.insert is faster
+        curPlyData[i] = {
+            id = player,
+            identifiers = ids,
+            name = GetPlayerName(player),
+            ping = GetPlayerPing(player)
+        }
     end
 
-    local url = "http://127.0.0.1:"..apiPort.."/intercom/monitor"
+    local url = "http://"..TX_LUACOMHOST.."/intercom/monitor"
     local exData = {
-        txAdminToken = apiToken,
-        players = players
+        txAdminToken = TX_LUACOMTOKEN,
+        players = curPlyData
     }
     PerformHttpRequest(url, function(httpCode, data, resultHeaders)
         local resp = tostring(data)
@@ -96,41 +114,29 @@ end
 
 function FD3HeartBeat()
     local payload = json.encode({type = 'txAdminHeartBeat'})
-    Citizen.InvokeNative(`PRINT_STRUCTURED_TRACE` & 0xFFFFFFFF, payload)
+    PrintStructuredTrace(payload)
 end
 
 -- HTTP request handler
 function handleHttp(req, res)
+    res.writeHead(200, {["Content-Type"]="application/json"})
+
     if req.path == '/stats.json' then
         return res.send(hbReturnData)
+    elseif req.path == '/players.json' then
+        if txHttpPlayerlistHandler ~= nil then
+            return txHttpPlayerlistHandler(req, res)
+        else
+            return res.send(json.encode({error = 'handler not found'}))
+        end
     else
-        return res.send('')
+        return res.send(json.encode({error = 'route not found'}))
     end
 end
 
 -- Ping!
 function txaPing(source, args)
     log("Pong!")
-    CancelEvent()
-end
-
--- Warn specific player via server ID
-function txaWarnID(source, args)
-    if #args == 6 then
-        for k,v in pairs(args) do
-            args[k] = unDeQuote(v)
-        end
-        local id, author, reason, tTitle, tWarnedBy, tInstruction = table.unpack(args)
-        local pName = GetPlayerName(id)
-        if pName ~= nil then
-            TriggerClientEvent('txAdminClient:warn', id, author, reason, tTitle, tWarnedBy, tInstruction)
-            log("Warning "..pName.." with reason: "..reason)
-        else
-            logError('txaWarnID: player not found')
-        end
-    else
-        logError('Invalid arguments for txaWarnID')
-    end
     CancelEvent()
 end
 
@@ -207,37 +213,49 @@ function txaDropIdentifiers(_, args)
     CancelEvent()
 end
 
+-- Broadcast admin message to all players
+-- This function is triggered by txaEvent
+local function handleAnnouncementEvent(eventData)
+    print('handleAnnouncementEvent')
+    TriggerClientEvent("txAdmin:receiveAnnounce", -1, eventData.message, eventData.author)
+    TriggerEvent('txaLogger:internalChatMessage', 'tx', "(Broadcast) "..eventData.author, eventData.message)
+end
+
+-- Warn specific player via server ID
+-- This function is triggered by txaEvent
+local function handleWarnEvent(eventData)
+    -- target, author, reason, actionId
+    local pName = GetPlayerName(eventData.target)
+    if pName ~= nil then
+        TriggerClientEvent('txAdminClient:warn', eventData.target, eventData.author, eventData.reason)
+        log("Warning "..pName.." with reason: "..eventData.reason)
+    else
+        logError('txaWarnID: player not found')
+    end
+end
+
 -- Fire server event
 function txaEvent(source, args)
-    if args[1] ~= nil and args[2] ~= nil then
-        local eventName = unDeQuote(args[1])
-        local eventData = unDeQuote(args[2])
-        TriggerEvent("txAdmin:events:" .. eventName, json.decode(eventData))
-    else
-        logError('Invalid arguments for txaEvent')
+    -- sanity check
+    if type(args[1]) ~= 'string' or type(args[2]) ~= 'string' then
+        return logError('Invalid arguments for txaEvent')
+    end
+    -- prevent execution from admins or resources
+    if source ~= 0 or GetInvokingResource() ~= nil then return end
+
+    -- processing event
+    local eventName = unDeQuote(args[1])
+    local eventData = json.decode(unDeQuote(args[2]))
+    TriggerEvent("txAdmin:events:" .. eventName, eventData)
+
+    if eventName == 'playerWarned' then 
+        return handleWarnEvent(eventData)
+    elseif eventName == 'announcement' then 
+        return handleAnnouncementEvent(eventData)
     end
     CancelEvent()
 end
 
--- Broadcast admin message to all players
-function txaBroadcast(source, args)
-    if args[1] ~= nil and args[2] ~= nil then
-        args[1] = unDeQuote(args[1])
-        args[2] = unDeQuote(args[2])
-        log("Admin Broadcast - "..args[1]..": "..args[2])
-        TriggerClientEvent("chat:addMessage", -1, {
-            args = {
-                "(Broadcast) "..args[1],
-                args[2],
-            },
-            color = {255, 0, 0}
-        })
-        TriggerEvent('txaLogger:internalChatMessage', -1, "(Broadcast) "..args[1], args[2])
-    else
-        logError('Invalid arguments for txaBroadcast')
-    end
-    CancelEvent()
-end
 
 -- Send admin direct message to specific player
 function txaSendDM(source, args)
@@ -271,21 +289,28 @@ function txaReportResources(source, args)
     local max = GetNumResources() - 1
     for i = 0, max do
         local resName = GetResourceByFindIndex(i)
+
+        -- hacky patch
+        local resDesc = GetResourceMetadata(resName, 'description')
+        if resDesc ~= nil and string.find(resDesc, "Louis.dll") then
+            resDesc = nil
+        end
+
         local currentRes = {
             name = resName,
             status = GetResourceState(resName),
             author = GetResourceMetadata(resName, 'author'),
             version = GetResourceMetadata(resName, 'version'),
-            description = GetResourceMetadata(resName, 'description'),
+            description = resDesc,
             path = GetResourcePath(resName)
         }
         table.insert(resources, currentRes)
     end
 
     --Send to txAdmin
-    local url = "http://127.0.0.1:"..apiPort.."/intercom/resources"
+    local url = "http://"..TX_LUACOMHOST.."/intercom/resources"
     local exData = {
-        txAdminToken = apiToken,
+        txAdminToken = TX_LUACOMTOKEN,
         resources = resources
     }
     log('Sending resources list to txAdmin.')
@@ -299,23 +324,31 @@ end
 
 -- Player connecting handler
 function handleConnections(name, skr, d)
-    if  GetConvar("txAdmin-checkPlayerJoin", "invalid") == "true" then
+    local player = source
+    if GetConvar("txAdmin-checkPlayerJoin", "invalid") == "true" then
         d.defer()
-        local url = "http://127.0.0.1:"..apiPort.."/intercom/checkPlayerJoin"
+        Wait(0)
+
+        --Preparing vars and making sure we do have indentifiers
+        local url = "http://"..TX_LUACOMHOST.."/intercom/checkPlayerJoin"
         local exData = {
-            txAdminToken = apiToken,
-            identifiers  = GetPlayerIdentifiers(source),
+            txAdminToken = TX_LUACOMTOKEN,
+            identifiers = GetPlayerIdentifiers(player),
             name = name
         }
+        if #exData.identifiers <= 1 then
+            d.done("[txAdmin] You do not have at least 1 valid identifier. If you own this server, make sure sv_lan is disabled in your server.cfg")
+            return
+        end
 
         --Attempt to validate the user
         CreateThread(function()
             local attempts = 0
             local isDone = false;
-            --Do 5 attempts
-            while isDone == false and attempts < 5 do
+            --Do 10 attempts
+            while isDone == false and attempts < 10 do
                 attempts = attempts + 1
-                d.update("[txAdmin] Checking banlist/whitelist... ("..attempts.."/5)")
+                d.update("[txAdmin] Checking banlist/whitelist... ("..attempts.."/10)")
                 PerformHttpRequest(url, function(httpCode, data, resultHeaders)
                     local resp = tostring(data)
                     if httpCode ~= 200 then

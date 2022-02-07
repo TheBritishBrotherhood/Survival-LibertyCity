@@ -5,36 +5,52 @@
 
     const timers = {};
     let timerId = 0;
+    let activeTimersCount = 0;
 
     const tickers = {};
     let tickerId = 0;
+    let activeTickersCount = 0;
 
     let animationFrames = [];
 
-    global.printError = function(where, e) {
-		const stackBlob = global.msgpack_pack(e.stack);
-		const fst = global.FormatStackTrace(stackBlob, stackBlob.length);
-		
-		if (fst) {
-			console.log('^1SCRIPT ERROR in ' + where + ': ' + e.toString() + "^7\n");
-			console.log(fst);
-		}
-        //console.error(`Unhandled error in ${where}: ${e.toString()}\n${e.stack}`);
+    function normalizeInterval(interval) {
+        return Math.max(1, Math.min(2147483647, interval || 1)) | 0;
     }
 
     function setTimer(timer, callback, interval) {
+        activeTimersCount++;
+
         timers[timer.id] = {
             callback,
-            interval,
-            lastRun: gameTime
+            interval: normalizeInterval(interval),
+            lastRun: gameTime,
         };
     }
 
     function nextTimerId() {
+        const id = ++timerId;
+
         return {
-            id: ++timerId,
-            unref() {},
-            ref() {}
+            id,
+            unref() {
+                return this;
+            },
+            ref() {
+                return this;
+            },
+            hasRef() {
+                return true;
+            },
+            refresh() {
+                const timer = timers[id];
+                if (timer) {
+                    timer.lastRun = gameTime;
+                }
+                return this;
+            },
+            [Symbol.toPrimitive]() {
+                return id;
+            },
         };
     }
 
@@ -43,7 +59,13 @@
     }
 
     function setTick(callback) {
+        if (typeof callback !== 'function') {
+            throw new TypeError(`Callback must be a function. Received ${callback}`);
+        }
+
         const id = nextTickerId();
+
+        activeTickersCount++;
 
         tickers[id] = {
             callback,
@@ -58,7 +80,10 @@
             return;
         }
 
-        delete tickers[ticker];
+        if (tickers[ticker]) {
+            activeTickersCount--;
+            delete tickers[ticker];
+        }
     }
 
     function resolveTicker(ticker) {
@@ -78,7 +103,10 @@
             return;
         }
 
-        delete timers[timer.id];
+        if (timers[timer.id]) {
+            activeTimersCount--;
+            delete timers[timer.id];
+        }
     }
 
     function requestAnimationFrame(callback) {
@@ -86,12 +114,16 @@
     }
 
     function setInterval(callback, interval, ...argsForCallback) {
+        if (typeof callback !== 'function') {
+            throw new TypeError(`Callback must be a function. Received ${callback}`);
+        }
+
         const id = nextTimerId();
 
         setTimer(
             id,
             function() {
-		callback(...argsForCallback);
+                callback(...argsForCallback);
             },
             interval
         );
@@ -100,6 +132,10 @@
     }
 
     function setTimeout(callback, timeout, ...argsForCallback) {
+        if (typeof callback !== 'function') {
+            throw new TypeError(`Callback must be a function. Received ${callback}`);
+        }
+
         const id = nextTimerId();
 
         setTimer(
@@ -118,13 +154,14 @@
     }
 
     function setImmediate(callback, ...argsForCallback) {
+        if (typeof callback !== 'function') {
+            throw new TypeError(`Callback must be a function. Received ${callback}`);
+        }
+
         return setTimeout(callback, 0, ...argsForCallback);
     }
 
-    function onTick() {
-        const localGameTime = Citizen.getTickCount(); // ms
-        let i;
-
+    function onTick(localGameTime) {
         // Process timers
         for (const timerId in timers) {
             const timer = timers[timerId];
@@ -171,7 +208,7 @@
             const currentAnimationFrames = animationFrames;
             animationFrames = [];
 
-            i = currentAnimationFrames.length;
+            let i = currentAnimationFrames.length;
 
             while (i--) {
                 try {
@@ -215,10 +252,22 @@
         clearImmediate: clearTimer,
         requestAnimationFrame,
     });
+    
+    global.Citizen.setTickFunction(localGameTime => {
+        if (activeTimersCount === 0 && activeTickersCount === 0 && animationFrames.length === 0) {
+            gameTime = localGameTime;
 
-    global.Citizen.setTickFunction(() => {
-		global.runWithBoundaryStart(() => {
-			onTick();
-		});
-	});
+            // Manually fire callbacks that were enqueued by process.nextTick.
+            // Since we override setImmediate/etc, this doesn't happen automatically.
+            if (global.process && typeof global.process._tickCallback === 'function') {
+                global.process._tickCallback();
+            }
+            
+            return;
+        }
+    
+        global.runWithBoundaryStart(() => {
+            onTick(localGameTime);
+        });
+    });
 })(this || window);

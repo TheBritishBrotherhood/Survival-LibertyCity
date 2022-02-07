@@ -70,6 +70,16 @@ interface CitizenInterface {
     makeRefFunction(refFunction: Function): string
 }
 
+interface CitizenTimer {
+    ref(): CitizenTimer,
+    unref(): CitizenTimer,
+    hasRef(): boolean,
+    refresh(): CitizenTimer,
+    [Symbol.toPrimitive](): number,
+}
+
+type CitizenImmediate = Omit<CitizenTimer, 'refresh'>;
+
 declare var Citizen: CitizenInterface;
 
 declare function addRawEventListener(eventName: string, callback: Function): void
@@ -88,14 +98,26 @@ declare function emitNet(eventName: string, ...args: any[]): void
 declare function TriggerServerEvent(eventName: string, ...args: any[]): void
 declare function TriggerLatentServerEvent(eventName: string, bps: number, ...args: any[]): void
 
-declare function getPlayerIdentifiers(player: string): string[]
-declare function getPlayers(): number[]
+declare function getPlayerIdentifiers(player: number|string): string[]
+declare function getPlayerTokens(player: number|string): string[]
+declare function getPlayers(): string[]
+
+declare function SendNUIMessage(data: any): void
 
 declare function emitNet(eventName: string, target: number|string, ...args: any[]): void
 declare function TriggerClientEvent(eventName: string, target: number|string, ...args: any[]): void
 declare function TriggerLatentClientEvent(eventName: string, target: number|string, bps: number, ...args: any[]): void
 
 declare function removeEventListener(eventName: string, callback: Function): void
+
+declare function setTimeout<T extends any[]>(callback: (...args: T) => void, ms?: number, ...args: T): CitizenTimer;
+declare function clearTimeout(timeout: CitizenTimer): void;
+
+declare function setInterval<T extends any[]>(callback: (...args: T) => void, ms?: number, ...args: T): CitizenTimer;
+declare function clearInterval(interval: CitizenTimer): void;
+
+declare function setImmediate<T extends any[]>(callback: (...args: T) => void, ...args: T): CitizenImmediate;
+declare function clearImmediate(immediate: CitizenImmediate): void;
 
 declare function setTick(callback: Function): number
 declare function clearTick(callback: number): void
@@ -104,7 +126,8 @@ declare function NewStateBag(name: string) : StateBagInterface;
 declare function Entity(entity: number): EntityInterface
 declare var GlobalState : StateBagInterface
 declare function Player(entity: number|string): EntityInterface
+declare var LocalPlayer : EntityInterface
 
 declare var exports: any;
 
-declare var source: string;
+declare var source: number;
